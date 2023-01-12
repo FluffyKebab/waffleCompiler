@@ -1,0 +1,19 @@
+adder = (a int, b int) -> { a + b }
+
+addFive = (a int) -> {!adder a 5}
+
+reduction = (f (int, int) -> (int), a int, b int, c int) -> (int) {
+    first = !f a b
+    second = !f first c
+    return second
+}
+
+map = (f (int) -> (int), a int, b int, c int) -> (int, int, int) {
+    newA = !f a
+    newB = !f b
+    newC = !f c
+    return newA, newB, newC
+}
+
+main = () -> { !reduction (adder) (!map addFive 10 10 10) }
+
