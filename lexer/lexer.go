@@ -2,7 +2,6 @@ package lexer
 
 import (
 	"compiler/token"
-	"compiler/types"
 	"fmt"
 	"unicode"
 )
@@ -32,15 +31,15 @@ func (l *Lexer) NextToken() token.Token {
 		l.readPosition++
 	}
 
-	for _, tokenType := range token.TokenLiterals {
-		if l.tokenIs(tokenType) {
-			return l.newToken(tokenType, tokenType, l.curLine)
+	for _, typeToken := range token.TypeTokens {
+		if l.tokenIs(typeToken) {
+			return l.newToken(token.TYPE, typeToken, l.curLine)
 		}
 	}
 
-	for _, variableType := range types.ValidTypes {
-		if l.tokenIs(variableType) {
-			return l.newToken(token.TYPE, variableType, l.curLine)
+	for _, tokenType := range token.TokenLiterals {
+		if l.tokenIs(tokenType) {
+			return l.newToken(tokenType, tokenType, l.curLine)
 		}
 	}
 

@@ -21,14 +21,15 @@ const (
 	NONE    = "NONE"
 	NEWLINE = "\n"
 
-	VARIABLE = "VARIABLE"
-	TYPE     = "TYPE"
-	STRING   = "string"
-	FLOAT    = "float"
-	INT      = "int"
-	BOOL     = "bool"
-	TRUE     = "true"
-	FALSE    = "false"
+	VARIABLE   = "VARIABLE"
+	TYPE       = "TYPE"
+	ARRAY_TYPE = "[]"
+	STRING     = "string"
+	FLOAT      = "float"
+	INT        = "int"
+	BOOL       = "bool"
+	TRUE       = "true"
+	FALSE      = "false"
 
 	RETURN           = "return"
 	IF               = "if"
@@ -60,6 +61,14 @@ const (
 	START_ARRAY       = "["
 	END_ARRAY         = "]"
 )
+
+var TypeTokens []string = []string{
+	ARRAY_TYPE,
+	STRING,
+	FLOAT,
+	INT,
+	BOOL,
+}
 
 var TokenLiterals []string = []string{
 	RETURN,

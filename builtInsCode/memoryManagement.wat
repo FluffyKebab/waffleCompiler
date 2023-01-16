@@ -3,14 +3,8 @@
   (type $0 (func (param i32) (result i32)))
   (type $1 (func (param i32)))
   (type $2 (func (param i32) (param i32) (result i32)))
-  (type $3 (func))
-  (type $4 (func (param i32) (param i32) (result i32)))
-  (type $5 (func (param i32) (param i32) (result f32)))
-  (type $6 (func (param i32) (param i32) (param i32)))
-  (type $7 (func (param i32) (param i32) (param f32)))
-  (type $8 (func (param i32) (param i32) (param i32) (result i32)))
-  (type $9 (func (param i32) (param i32) (param f32) (result i32)))
-
+  (type $3 (func (param i32) (param i32) (param i32) (result i32)))
+ 
   ;; Gets num bytes and returns pointer to chunk with minimum num bytes lenght
   (func $allocate (type $0) (param $numBytes i32) (result i32)
     (local $nextChunkPos i32)
@@ -126,78 +120,31 @@
     return
   )
 
-  (func $checkArraySize (param $index i32) (param $arraySize i32)
-    (i32.ge_u (local.get $index) (local.get $arraySize))
-    (if
-      (then
-        (unreachable)
+  (func $take (type $3) (param $numToTake i32) (param $arrayPointer i32) (param $elementSize i32) (result i32)
+    (local $newArray i32)
+    (local $newArrayFirstPos i32)
+    (local $arrayPointerFirstPos i32)
+    (local $i i32)
+    (local $numBytesToTake i32)
+
+    (if (i32.gt_u (local.get $numToTake) (i32.load (local.get $arrayPointer))) (then (unreachable)))
+    
+    (local.set $newArray (call $array (local.get $numToTake) (local.get $elementSize)))
+    (local.set $newArrayFirstPos (i32.add (local.get $newArray) (i32.const 4)))
+    (local.set $arrayPointerFirstPos (i32.add (local.get $arrayPointer) (i32.const 4)))
+    (local.set $numBytesToTake (i32.mul (local.get $numToTake) (local.get $elementSize)))
+
+    (loop $copy
+      (i32.store8
+        (i32.add (local.get $newArrayFirstPos) (local.get $i))
+        (i32.load8_u (i32.add (local.get $arrayPointerFirstPos) (local.get $i)))
       )
+      
+      (local.set $i (i32.add (local.get $i) (i32.const 1)))
+      (br_if $copy (i32.lt_u (local.get $i) (local.get $numBytesToTake)))
     )
-  )
 
-  (; Array setters: ;)
-  (func $i32set (type $8) (param $arrayPointer i32) (param $index i32) (param $elementValue i32) (result i32)
-    (call $checkArraySize (local.get $index) (i32.load (local.get $arrayPointer)))
-
-    (local.set $arrayPointer (i32.add (local.get $arrayPointer) (i32.const 4)))
-    (i32.store (i32.add (local.get $arrayPointer) (i32.mul (local.get $index) (i32.const 4))) (local.get $elementValue))
-    (local.get $arrayPointer)
-  )
-
-  (func $i8set (type $8) (param $arrayPointer i32) (param $index i32) (param $elementValue i32) (result i32)
-    (call $checkArraySize (local.get $index) (i32.load (local.get $arrayPointer)))
-
-    (local.set $arrayPointer (i32.add (local.get $arrayPointer) (i32.const 4)))
-    (i32.store8 (i32.add (local.get $arrayPointer) (local.get $index)) (local.get $elementValue))
-    (local.get $arrayPointer)
-  )
-
-  (func $f32set (type $9) (param $arrayPointer i32) (param $index i32) (param $elementValue f32) (result i32)
-    (call $checkArraySize (local.get $index) (i32.load (local.get $arrayPointer)))
-
-    (local.set $arrayPointer (i32.add (local.get $arrayPointer) (i32.const 4)))
-    (f32.store (i32.add (local.get $arrayPointer) (i32.mul (local.get $index) (i32.const 4))) (local.get $elementValue))
-    (local.get $arrayPointer)
-  )
-
-  (; Array getters ;)
-  (func $i32get (type $4) (param $arrayPointer i32) (param $index i32) (result i32)
-    (call $checkArraySize (local.get $index) (i32.load (local.get $arrayPointer)))
-
-    (local.set $arrayPointer (i32.add (local.get $arrayPointer) (i32.const 4)))
-    (i32.load (i32.add (local.get $arrayPointer) (i32.mul (local.get $index) (i32.const 4))))
-  )
-
-  (func $i8get (type $4) (param $arrayPointer i32) (param $index i32) (result i32)
-    (call $checkArraySize (local.get $index) (i32.load (local.get $arrayPointer)))
-
-    (local.set $arrayPointer (i32.add (local.get $arrayPointer) (i32.const 4)))
-    (i32.load8_u (i32.add (local.get $arrayPointer) (local.get $index)))
-  )
-
-  (func $f32get (type $5) (param $arrayPointer i32) (param $index i32) (result f32)
-    (call $checkArraySize (local.get $index) (i32.load (local.get $arrayPointer)))
-
-    (local.set $arrayPointer (i32.add (local.get $arrayPointer) (i32.const 4)))
-    (f32.load (i32.add (local.get $arrayPointer) (i32.mul (local.get $index) (i32.const 4))))
-  )
-
-  (func $test (export "test") (type $3)
-    (local $array1 i32)
-    (local $array2 i32)
-    (local.set $array1 (call $array (i32.const 5) (i32.const 4)))
-
-    (call $i32set (local.get $array1) (i32.const 0) (i32.const 3))
-    (call $i32set (local.get $array1) (i32.const 1) (i32.const 5))
-    (call $i32set (local.get $array1) (i32.const 2) (i32.const 6))
-    (call $i32set (local.get $array1) (i32.const 3) (i32.const 7))
-    (call $i32set (local.get $array1) (i32.const 4) (i32.const 8))
-
-    (local.set $array2 (call $array (i32.const 10) (i32.const 4)))
-    (call $i32set (local.get $array2) (i32.const 0) (call $i32get (local.get $array1) (i32.const 0)))
-    (call $i32set (local.get $array2) (i32.const 1) (call $i32get (local.get $array1) (i32.const 1)))
-    (call $i32set (local.get $array2) (i32.const 2) (call $i32get (local.get $array1) (i32.const 2)))
-    (call $i32set (local.get $array2) (i32.const 3) (call $i32get (local.get $array1) (i32.const 3)))
+    (local.get $newArray)
   )
 )
 

@@ -61,17 +61,24 @@ func (c *compiler) compileExpression(expression ast.Node, functionLocals *functi
 		case ast.Variable:
 			variableSymbol, isDefined, symbolIsGlobal := c.symbolController.Resolve(f.Identifier)
 			if !isDefined {
-				if isStandardFunction(f.Identifier) {
+				if isOpenStandardFunction[f.Identifier] {
 					argumentTypes := make([]types.Type, 0)
 					for i := 0; i < len(s.Arguments); i++ {
 						argumentTypes = append(argumentTypes, s.Arguments[i].GetExpressionReturnType()...)
 					}
 
-					tableIndex, functionTypeIndex, err = c.getStandardFunctionIndexAndTypeIndex(f.Identifier, argumentTypes)
+					var extraArguments []byte
+					tableIndex, functionTypeIndex, extraArguments, err = c.getStandardFunctionIndexTypeIndexAndExtraArguments(f.Identifier, argumentTypes)
+					if err != nil {
+						return []byte{}, err
+					}
+
+					byteCode = append(byteCode, extraArguments...)
+
 					break
 				}
 
-				return []uint8{}, fmt.Errorf("undefined identifier")
+				return []uint8{}, fmt.Errorf("Internal compiler error: undefined identifier")
 			}
 
 			isGlobal = symbolIsGlobal

@@ -116,6 +116,10 @@ func areListsMatching(list1, list2 []types.Type) bool {
 
 func generateOperatorError(operator string, leftTypes, rightTypes []types.Type) error {
 	errorMessage := "use of operator " + operator + " on "
+	if len(leftTypes) == 0 {
+		errorMessage += "no type "
+	}
+
 	for i := 0; i < len(leftTypes); i++ {
 		errorMessage += leftTypes[i].String()
 		if i+1 != len(leftTypes) {
@@ -124,6 +128,9 @@ func generateOperatorError(operator string, leftTypes, rightTypes []types.Type) 
 	}
 
 	errorMessage += " and "
+	if len(rightTypes) == 0 {
+		errorMessage += "no type "
+	}
 	for i := 0; i < len(rightTypes); i++ {
 		errorMessage += rightTypes[i].String()
 		if i+1 != len(rightTypes) {
@@ -131,7 +138,7 @@ func generateOperatorError(operator string, leftTypes, rightTypes []types.Type) 
 		}
 	}
 
-	errorMessage += " not supported"
+	errorMessage += "not supported"
 
 	return fmt.Errorf(errorMessage)
 }

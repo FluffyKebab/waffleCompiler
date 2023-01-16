@@ -13,14 +13,15 @@ import (
 
 func Compile(syntaxTree ast.Program) ([]byte, error) {
 	c := &compiler{
-		typeSection:      newTypeSection(),
-		tableSection:     newTableSection(),
-		elementSection:   newElementSection(),
-		funcSection:      newFunctionSection(),
-		codeSection:      newCodeSection(),
-		exportSection:    newExportSection(),
-		memorySection:    newMemorySection(1),
-		symbolController: symbolTable.NewSymbolController(),
+		typeSection:       newTypeSection(),
+		tableSection:      newTableSection(),
+		elementSection:    newElementSection(),
+		funcSection:       newFunctionSection(),
+		codeSection:       newCodeSection(),
+		exportSection:     newExportSection(),
+		memorySection:     newMemorySection(1), //memory size in pages
+		symbolController:  symbolTable.NewSymbolController(),
+		standardFunctions: standardFunctions{standardFunctionIndexes: make(map[string]typeAndFuncIndex)},
 	}
 
 	err := c.compile(syntaxTree)
@@ -32,14 +33,15 @@ func Compile(syntaxTree ast.Program) ([]byte, error) {
 }
 
 type compiler struct {
-	typeSection      *typeSection
-	tableSection     *tableSection
-	elementSection   *elementSection
-	funcSection      *functionSection
-	codeSection      *codeSection
-	exportSection    *exportSection
-	memorySection    *memorySection
-	symbolController *symbolTable.SymbolController
+	typeSection       *typeSection
+	tableSection      *tableSection
+	elementSection    *elementSection
+	funcSection       *functionSection
+	codeSection       *codeSection
+	exportSection     *exportSection
+	memorySection     *memorySection
+	symbolController  *symbolTable.SymbolController
+	standardFunctions standardFunctions
 }
 
 func (c *compiler) compile(syntaxTree ast.Program) error {
@@ -48,7 +50,7 @@ func (c *compiler) compile(syntaxTree ast.Program) error {
 		return err
 	}
 
-	err = c.importStandardFunctions()
+	err = c.importMemoryHandler()
 	if err != nil {
 		return err
 	}

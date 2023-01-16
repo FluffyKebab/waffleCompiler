@@ -108,7 +108,6 @@ func (t AnyType) ByteCode() uint8 {
 const (
 	INT    = "int"
 	FLOAT  = "float"
-	NUM    = "num"
 	STRING = "string"
 	BOOL   = "bool"
 	NONE   = "NONE"
@@ -117,7 +116,6 @@ const (
 var ValidTypes []string = []string{
 	INT,
 	FLOAT,
-	NUM,
 	STRING,
 	BOOL,
 }

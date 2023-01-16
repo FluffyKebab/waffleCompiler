@@ -1,172 +1,119 @@
 package wasmCompiler
 
 import (
-	"compiler/ast"
-	"compiler/leb128"
 	"compiler/readWasm"
 	"compiler/token"
 	"compiler/types"
-	"compiler/wasmCompiler/code"
 	"fmt"
 )
 
-func (c *compiler) importStandardFunctions() error {
-	for i := 0; i < len(standardFunctions); i++ {
-		functionCode, err := readWasm.GetFuncFromFile(standardFunctions[i].fileName, standardFunctions[i].funcIndex)
+type typeAndFuncIndex struct {
+	typeIndex int
+	funcIndex int
+}
+
+type standardFunctions struct {
+	standardFunctionIndexes map[string]typeAndFuncIndex
+}
+
+func (c *compiler) getStandardFunctionIndexTypeIndexAndExtraArguments(name string, arguments []types.Type) (int, int, []byte, error) {
+	realFunctionName, err := getStandardFunctionRealName(name, arguments)
+	if err != nil {
+		return 0, 0, []byte{}, err
+	}
+
+	extraArguments, err := getStandardFunctionExtraArguments(name, arguments)
+	if err != nil {
+		return 0, 0, []byte{}, err
+	}
+
+	if indexes, isImported := c.standardFunctions.standardFunctionIndexes[realFunctionName]; isImported {
+		return indexes.funcIndex, indexes.typeIndex, extraArguments, nil
+	}
+
+	funcIndex, typeIndex, err := c.importStandardFunction(realFunctionName)
+	return funcIndex, typeIndex, extraArguments, err
+}
+
+//the memory handler must be added before all other function because multiple standard functions written in wasm reference these functions indexes with 0, 1 and 2
+func (c *compiler) importMemoryHandler() error {
+	_, _, err := c.importStandardFunction("allocate")
+	_, _, err = c.importStandardFunction("deAllocate")
+	_, _, err = c.importStandardFunction("array")
+	return err
+}
+
+//Returns func index and type index
+func (c *compiler) importStandardFunction(functionName string) (int, int, error) {
+	for i := 0; i < len(standardFunctionsData); i++ {
+		if standardFunctionsData[i].name != functionName {
+			continue
+		}
+
+		functionCode, err := readWasm.GetFuncFromFile(standardFunctionsData[i].fileName, standardFunctionsData[i].funcIndex)
 		if err != nil {
-			return fmt.Errorf("Error getting standard function %v from file %v: %v", standardFunctions[i].funcIndex, standardFunctions[i].fileName, err.Error())
+			return 0, 0, fmt.Errorf("Internal compiler error: Error getting standard function %v from file %v: %v", standardFunctionsData[i].funcIndex, standardFunctionsData[i].fileName, err.Error())
 		}
 
-		var funcIndex int
-		if standardFunctions[i].open {
-			_, funcIndex = c.symbolController.DefineVariable(standardFunctions[i].name, standardFunctions[i].funcType)
-		} else {
-			funcIndex = c.symbolController.DefineAnonymousFunction()
-		}
-
-		typeIndex := c.typeSection.addType(standardFunctions[i].funcType)
+		funcIndex := c.symbolController.DefineAnonymousFunction()
+		typeIndex := c.typeSection.addType(standardFunctionsData[i].funcType)
 
 		c.funcSection.addFunction(typeIndex)
 		c.tableSection.addFunction()
 		c.elementSection.addFunction(funcIndex)
 		c.codeSection.addFunction(functionCode, funcIndex)
+		c.standardFunctions.standardFunctionIndexes[functionName] = typeAndFuncIndex{funcIndex: funcIndex, typeIndex: typeIndex}
+
+		return funcIndex, typeIndex, nil
 	}
 
-	return nil
+	return 0, 0, fmt.Errorf("Internal compiler error: Standard function with name %s not found in standard function data", functionName)
 }
 
-func (c *compiler) createArrayCode(arrayElementType types.Type, arrayElementsExpression []ast.Node, functionLocals *functionLocals) ([]byte, error) {
-	outputCode := make([]byte, 0)
-
-	elementSizeInBytes, err := getArrayTypeElementSize(arrayElementType)
-	if err != nil {
-		return []byte{}, err
-	}
-
-	outputCode = append(outputCode, addConst(len(arrayElementsExpression))...)
-	outputCode = append(outputCode, addConst(elementSizeInBytes)...)
-	outputCode = append(outputCode, addConst(standardFunctionsIndex["array"])...)
-
-	funcTypeIndex, err := c.getStandardFunctionTypeIndex("array")
-	if err != nil {
-		return []byte{}, err
-	}
-	outputCode = append(outputCode, callIndirect(funcTypeIndex)...)
-
-	arrayVariableIndex := functionLocals.defineLocalVariable(types.StandardType{Name: token.INT}, "", c.symbolController)
-	outputCode = append(outputCode, code.LOCAL_SET)
-	outputCode = append(outputCode, leb128.Int32ToULEB128((int32(arrayVariableIndex)))...)
-
-	for i := 0; i < len(arrayElementsExpression); i++ {
-		expressionCode, err := c.compileExpression(arrayElementsExpression[i], functionLocals)
-		if err != nil {
-			return []byte{}, err
+func getStandardFunctionRealName(functionName string, functionArguments []types.Type) (string, error) {
+	for _, functionNameNotDependingOnArgumentsTypes := range []string{"array", "allocate", "deAllocate", "length", "take"} {
+		if functionNameNotDependingOnArgumentsTypes == functionName {
+			return functionName, nil
 		}
-
-		indexCode := addConst(i)
-
-		variableCode := make([]byte, 0)
-		variableCode = append(variableCode, code.LOCAL_GET)
-		variableCode = append(variableCode, leb128.Int32ToULEB128(int32(arrayVariableIndex))...)
-
-		curSetterCode, err := c.createSetArrayCode(arrayElementType, variableCode, expressionCode, indexCode)
-		if err != nil {
-			return []byte{}, err
-		}
-
-		curSetterCode = append(curSetterCode, code.DROP)
-		outputCode = append(outputCode, curSetterCode...)
 	}
-
-	outputCode = append(outputCode, code.LOCAL_GET)
-	outputCode = append(outputCode, leb128.Int32ToULEB128((int32(arrayVariableIndex)))...)
-
-	return outputCode, nil
-}
-
-func (c *compiler) getStandardFunctionTypeIndex(funcName string) (int, error) {
-	return c.typeSection.getFunctionTypeIndex(standardFunctions[standardFunctionsIndex[funcName]].funcType)
-}
-
-func (c *compiler) createSetArrayCode(arrayVariableType types.Type, arrayVariableCode, elementExpressionCode, indexExpressionCode []byte) ([]byte, error) {
-	outputCode := make([]byte, 0)
-
-	setterFunctionIndex, setterTypeIndex, err := c.getSetOrGetArraySetFunctionIndexAndTypeIndex("set", arrayVariableType)
-	if err != nil {
-		return []byte{}, err
-	}
-
-	outputCode = append(outputCode, arrayVariableCode...)
-	outputCode = append(outputCode, indexExpressionCode...)
-	outputCode = append(outputCode, elementExpressionCode...)
-	outputCode = append(outputCode, addConst(setterFunctionIndex)...)
-	outputCode = append(outputCode, callIndirect(setterTypeIndex)...)
-
-	return outputCode, nil
-}
-
-func isStandardFunction(functionName string) bool {
-	switch functionName {
-	case "get":
-		return true
-	case "set":
-		return true
-	default:
-		return false
-	}
-}
-
-//Return type index, table index and an error
-func (c *compiler) getStandardFunctionIndexAndTypeIndex(functionName string, argumentTypes []types.Type) (int, int, error) {
 
 	if functionName == "get" || functionName == "set" {
-		if len(argumentTypes) < 1 {
-			return 0, 0, fmt.Errorf("Error in validation process: wrong amount of arguments in %s call", functionName)
+		if len(functionArguments) < 1 {
+			return "", fmt.Errorf("Error in validation process: wrong amount of arguments in %s call", functionName)
 		}
 
-		arrayType, firstIsArrayType := argumentTypes[0].(types.ArrayType)
-		if !firstIsArrayType {
-			return 0, 0, fmt.Errorf("Error in validation process: first argument of %s is not array type", functionName)
+		typePrefix, err := getArrayTypePrefix(functionArguments[0])
+		return typePrefix + functionName, err
+	}
+
+	return "", fmt.Errorf("Internal compiler error: getting real name of %s not implemented", functionName)
+}
+
+func getStandardFunctionExtraArguments(functionName string, functionArguments []types.Type) ([]byte, error) {
+	switch functionName {
+	case "take":
+		if len(functionArguments) != 2 {
+			return []byte{}, fmt.Errorf("Error in validation process: wrong amount of arguments to take ")
 		}
 
-		return c.getSetOrGetArraySetFunctionIndexAndTypeIndex(functionName, arrayType.ElementType)
+		sizeOfElementsInArray, err := getArrayTypeElementSize(functionArguments[1])
+		if err != nil {
+			return []byte{}, err
+		}
+
+		return addConst(sizeOfElementsInArray), nil
 	}
 
-	return 0, 0, fmt.Errorf("Function name %s given to getStandardFunctionIndex not supported", functionName)
+	return []byte{}, nil
 }
 
-func getStandardFunctionIndex(functionName string) (int, error) {
-	functionIndex, ok := standardFunctionsIndex[functionName]
-	if !ok {
-		return 0, fmt.Errorf("Function %v not found in standardFunctionIndex.", functionName)
+func getArrayTypePrefix(inputType types.Type) (string, error) {
+	arrayType, isArrayType := inputType.(types.ArrayType)
+	if !isArrayType {
+		return "", fmt.Errorf("Internal compiler error: argument inputType in getArrayTypePrefix not of arrayType")
 	}
 
-	return functionIndex, nil
-}
-
-func (c *compiler) getSetOrGetArraySetFunctionIndexAndTypeIndex(functionName string, arrayElementType types.Type) (int, int, error) {
-	typePrefix, err := getArrayTypePrefix(arrayElementType)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	realFunctionName := typePrefix + functionName
-
-	functionIndex, ok := standardFunctionsIndex[realFunctionName]
-	if !ok {
-		return 0, 0, fmt.Errorf("Error running getArraySetFunctionIndex: Function %vget not found in standardFunctionIndex.", typePrefix)
-	}
-
-	typeIndex, err := c.getStandardFunctionTypeIndex(realFunctionName)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	return functionIndex, typeIndex, nil
-}
-
-func getArrayTypePrefix(arrayElementType types.Type) (string, error) {
-	switch t := arrayElementType.(type) {
+	switch t := arrayType.ElementType.(type) {
 	case types.StandardType:
 		switch t.Name {
 		case token.INT:
@@ -178,7 +125,7 @@ func getArrayTypePrefix(arrayElementType types.Type) (string, error) {
 		case token.STRING:
 			return "i32", nil
 		default:
-			return "", fmt.Errorf("Type %s given to getArrayTypePrefix not supported", arrayElementType.String())
+			return "", fmt.Errorf("Type %s given to getArrayTypePrefix not supported", inputType)
 		}
 
 	case types.ArrayType:
@@ -187,11 +134,16 @@ func getArrayTypePrefix(arrayElementType types.Type) (string, error) {
 		return "i32", nil
 	}
 
-	return "", fmt.Errorf("Type %s given to getArrayTypePrefix not supported", arrayElementType.String())
+	return "", fmt.Errorf("Type %s given to getArrayTypePrefix not supported", inputType)
 }
 
-func getArrayTypeElementSize(arrayType types.Type) (int, error) {
-	switch t := arrayType.(type) {
+func getArrayTypeElementSize(inputType types.Type) (int, error) {
+	arrayType, isArrayType := inputType.(types.ArrayType)
+	if !isArrayType {
+		return 0, fmt.Errorf("Internal compiler error: argument inputType in getArrayTypeElementSize not of arrayType")
+	}
+
+	switch t := arrayType.ElementType.(type) {
 	case types.StandardType:
 		switch t.Name {
 		case token.INT:
@@ -203,7 +155,7 @@ func getArrayTypeElementSize(arrayType types.Type) (int, error) {
 		case token.STRING:
 			return 4, nil
 		default:
-			return 0, fmt.Errorf("Type %s given to getArrayTypeElementSize not supported", arrayType.String())
+			return 0, fmt.Errorf("Type %s given to getArrayTypeElementSize not supported", arrayType)
 		}
 
 	case types.ArrayType:
@@ -212,11 +164,5 @@ func getArrayTypeElementSize(arrayType types.Type) (int, error) {
 		return 4, nil
 	}
 
-	return 0, fmt.Errorf("Type %s given to getArrayTypeElementSize not supported", arrayType.String())
-}
-
-func addConst(constValue int) []byte {
-	outputCode := []byte{code.I32_CONST}
-	outputCode = append(outputCode, leb128.Int32ToULEB128(int32(constValue))...)
-	return outputCode
+	return 0, fmt.Errorf("Type %s given to getArrayTypeElementSize not supported", arrayType)
 }

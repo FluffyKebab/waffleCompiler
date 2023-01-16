@@ -42,8 +42,8 @@ func GetFuncFromFile(fileName string, funcIndex int) ([]byte, error) {
 	}
 	numBytesStoringFunctionLen := len(leb128.Int32ToULEB128(int32(functionLen)))
 
-	if curIndex+functionLen+numBytesStoringFunctionLen >= len(funcSection) {
-		return []uint8{}, fmt.Errorf("Error getting wasm func from file")
+	if curIndex+functionLen-1+numBytesStoringFunctionLen >= len(funcSection) {
+		return []uint8{}, fmt.Errorf("Error getting wasm func from file theIndex of the start the function plus the functionLen-1 plus numBytesStoringFunctionLen is greater than the length of the func section")
 	}
 
 	return funcSection[curIndex+numBytesStoringFunctionLen : curIndex+functionLen+numBytesStoringFunctionLen], nil
@@ -84,7 +84,7 @@ func getSectionFromFile(fileContent []byte, sectionCode byte) ([]byte, error) {
 
 	numBytesStoringSectionLen := len(leb128.Int32ToULEB128(int32(numBytesInSection)))
 
-	return fileContent[curIndex+numBytesStoringSectionLen+1 : curIndex+numBytesInSection+numBytesStoringSectionLen], nil
+	return fileContent[curIndex+numBytesStoringSectionLen+1 : curIndex+numBytesInSection+numBytesStoringSectionLen+1], nil
 }
 
 func skipMagic() int {

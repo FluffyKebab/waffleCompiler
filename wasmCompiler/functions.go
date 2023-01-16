@@ -2,10 +2,42 @@ package wasmCompiler
 
 import (
 	"compiler/ast"
+	"compiler/leb128"
 	"compiler/symbolTable"
 	"compiler/types"
 	"fmt"
 )
+
+type functions struct {
+	functions []function
+}
+
+func (f *functions) callFunction(functionIndex int, arguments []types.Type) ([]byte, error) {
+	if functionIndex >= len(f.functions) {
+		return []byte{}, fmt.Errorf("functionIndex given to callFunction not defined")
+	}
+
+	return f.functions[functionIndex].ByteCode(arguments)
+}
+
+//returns function index
+func (f *functions) addFunction(newFunction function) int {
+	f.functions = append(f.functions, newFunction)
+	return len(f.functions) - 1
+}
+
+type function interface {
+	ByteCode([]types.Type) ([]byte, error)
+}
+
+type normalFunction struct {
+	functionIndex int
+	typeIndex     int
+}
+
+func (f normalFunction) ByteCode(types []types.Type) ([]byte, error) {
+	return append(leb128.Int32ToULEB128(int32(f.functionIndex)), callIndirect(f.typeIndex)...), nil
+}
 
 // The function code will be added to the code section and the function name and index will be added to the symbol controller.
 func (c *compiler) addGlobalFunction(functionName string, function ast.DefineFunctionExpression) error {

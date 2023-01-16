@@ -40,22 +40,13 @@ func main() {
 
 /*
 Todo:
-- arrays
-	- set
 - array functions
 	- take
 	- append
 	- map
 	- reduce
 	- scan
-- if
 - add line num to ast to get better errors
-- replace ast.TypeLiteral with types.Type
 - currying
 - function composition
 */
-
-/*
-
-
- */

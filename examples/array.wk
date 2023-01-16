@@ -1,4 +1,4 @@
-main = () -> (int) { 
-    array = [5, 6, 19]
-    return 1 + !get array 0 + 1
-}
+sum = (array []int) -> (int) { if 0 == (!length array) 0 else (!get array ((!length array) -1)) + !sum !take ((!length array) -1) array }
+
+main = () -> { !sum [10, 10, 5, 5] }
+

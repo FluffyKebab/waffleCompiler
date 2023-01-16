@@ -204,7 +204,14 @@ func parseIfExpression(tokens []token.Token) (ast.IfExpression, error) {
 	}
 
 	if len(ifExpressionSplit) != 2 {
-		return ast.IfExpression{}, fmt.Errorf("Amount of expressions between if and else token is not two. There must be two expression between the if and else token. The first returning a boolean value.")
+		possibleReasonForError := ""
+		if len(ifExpressionToken) >= 1 {
+			if ifExpressionToken[0].Type == token.EXECUTE_FUNCTION {
+				possibleReasonForError += "Expression after if starts with a function execution symbol. All expressions after will be used as arguments for this function and you will therefore only have one expression between the if and else keyword. To fix this place parenthesis around the function execution and expressions meant as arguments for the function."
+			}
+		}
+
+		return ast.IfExpression{}, fmt.Errorf("Amount of expressions between if and else keyword is %v, not two. There must be two expression between the if and else token. The first returning a boolean value and the second being the true expression. %s", len(ifExpressionSplit), possibleReasonForError)
 	}
 
 	outputIfExpression.Condition, err = parseExpression(ifExpressionSplit[0])

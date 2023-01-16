@@ -6,88 +6,121 @@ import (
 	"compiler/errors"
 	"compiler/token"
 	"compiler/types"
-	"fmt"
 )
 
-//Gives error if tokens given form i not valid as function type literal and returns index after function type
-func parseFunctionTypeLiteral(tokens []token.Token, curTokensIndex int) (types.FunctionType, int, error) {
+//Returns the parsed type, index after type, bool storing if is valid type and error if a syntax error is found
+func parseTypeLiteral(tokens []token.Token, i int) (types.Type, int, bool, error) {
+	if standardType, indexAfter, isStandardType, err := parseStandardTypeLiteral(tokens, i); err != nil || isStandardType {
+		return standardType, indexAfter, isStandardType, err
+	}
+
+	if arrayType, indexAfter, isArrayType, err := parseArrayTypeLiteral(tokens, i); err != nil || isArrayType {
+		return arrayType, indexAfter, isArrayType, err
+	}
+
+	if functionType, indexAfter, isFunctionType, err := parseFunctionTypeLiteral(tokens, i); err != nil || isFunctionType {
+		return functionType, indexAfter, isFunctionType, err
+	}
+
+	return types.StandardType{}, i, false, nil
+}
+
+func parseStandardTypeLiteral(tokens []token.Token, i int) (types.Type, int, bool, error) {
+	if i >= len(tokens) {
+		return types.StandardType{}, i, false, nil
+	}
+
+	for _, standardType := range types.ValidTypes {
+		if tokens[i].Literal == standardType {
+			return types.StandardType{Name: standardType}, i + 1, true, nil
+		}
+	}
+
+	return types.StandardType{}, i, false, nil
+}
+
+func parseArrayTypeLiteral(tokens []token.Token, i int) (types.Type, int, bool, error) {
+	if i >= len(tokens) {
+		return types.StandardType{}, i, false, nil
+	}
+
+	if !(tokens[i].Type == token.TYPE && tokens[i].Literal == token.ARRAY_TYPE) {
+		return types.StandardType{}, i, false, nil
+	}
+
+	arrayElementType, indexAfter, isvalidType, err := parseTypeLiteral(tokens, i+1)
+	if err != nil {
+		return types.StandardType{}, i, false, err
+	}
+
+	if !isvalidType {
+		return types.StandardType{}, i, false, errors.NewGeneralError(tokens[i].Line, "valid type after [] is expected")
+	}
+
+	return types.ArrayType{ElementType: arrayElementType}, indexAfter, true, nil
+}
+
+func parseFunctionTypeLiteral(tokens []token.Token, curTokensIndex int) (types.FunctionType, int, bool, error) {
 	outputFunctionType := types.FunctionType{}
 
 	tokensInFirstParenthesis, isValidParenthesis, curTokensIndex := getParenthesisContent(tokens, curTokensIndex, token.LEFT_PARENTHESIS, token.RIGHT_PARENTHESIS)
 	if !isValidParenthesis {
-		return types.FunctionType{}, curTokensIndex, fmt.Errorf("Internal parser error: tokens given to parse function type literal not parseable as function. No valid parenthesis at curTokens index")
+		return types.FunctionType{}, curTokensIndex, false, nil
 	}
 
-	curTokensIndex++ //skipping the ->
+	if tokens[curTokensIndex].Type != token.FUNCTION_ARROW {
+		return types.FunctionType{}, curTokensIndex, false, nil
+	}
+	curTokensIndex++
 
 	tokensInSecondParenthesis, isValidParenthesis, curTokensIndex := getParenthesisContent(tokens, curTokensIndex, token.LEFT_PARENTHESIS, token.RIGHT_PARENTHESIS)
 	if !isValidParenthesis {
-		return types.FunctionType{}, curTokensIndex, fmt.Errorf("Internal parser error: tokens given to parse function type literal not parseable as function. No valid parenthesis after ->")
+		return types.FunctionType{}, curTokensIndex, false, nil
 	}
 
 	argumentTypes, err := getTypesSeparatedByComma(tokensInFirstParenthesis)
 	if err != nil {
-		return outputFunctionType, curTokensIndex, err
+		return outputFunctionType, curTokensIndex, false, err
 	}
 
 	returnTypes, err := getTypesSeparatedByComma(tokensInSecondParenthesis)
 	if err != nil {
-		return outputFunctionType, curTokensIndex, err
+		return outputFunctionType, curTokensIndex, false, err
 	}
 
 	outputFunctionType.ArgumentTypes = argumentTypes
 	outputFunctionType.ReturnTypes = returnTypes
 
-	return outputFunctionType, curTokensIndex, nil
+	return outputFunctionType, curTokensIndex, true, nil
 }
 
 func getTypesSeparatedByComma(tokens []token.Token) ([]types.Type, error) {
-	commaSeparatedTokens := splitTokenSliceByComma(tokens) // Split slice into multiple slices that contain tokens between comma
-
 	outputTypes := make([]types.Type, 0)
 
-	for i := 0; i < len(commaSeparatedTokens); i++ {
-		if len(commaSeparatedTokens[i]) == 0 {
-			continue
+	for i := 0; true; {
+		curType, indexAfter, valid, err := parseTypeLiteral(tokens, i)
+		if err != nil {
+			return []types.Type{}, err
 		}
 
-		if isStandardTypeLiteral(commaSeparatedTokens[i], 0) {
-			if len(commaSeparatedTokens[i]) > 1 {
-				return outputTypes, errors.NewSyntaxErrorInvalidToken(commaSeparatedTokens[i][1].Line, commaSeparatedTokens[i][1].Literal)
-			}
-
-			outputTypes = append(outputTypes, types.StandardType{
-				Name: commaSeparatedTokens[i][0].Literal,
-			})
-
-			continue
+		if !valid {
+			return []types.Type{}, errors.NewGeneralError(tokens[0].Line, "Function type not valid ")
 		}
 
-		if isFunctionTypeLiteral(commaSeparatedTokens[i], 0) {
-			functionType, _, err := parseFunctionTypeLiteral(commaSeparatedTokens[i], 0)
-			if err != nil {
-				return outputTypes, err
-			}
+		outputTypes = append(outputTypes, curType)
 
-			outputTypes = append(outputTypes, functionType)
-
-			continue
+		if indexAfter >= len(tokens) {
+			break
 		}
 
-		return outputTypes, errors.NewGeneralError(tokens[0].Line, "Tokens not parsable as type literal in function type")
+		if tokens[indexAfter].Type != token.COMMA {
+			return []types.Type{}, errors.NewGeneralError(tokens[0].Line, "Commas between types in function type is expected")
+		}
+
+		i = indexAfter + 1
 	}
 
 	return outputTypes, nil
-}
-
-func isValidAsTypeLiteral(tokens []token.Token, i int) bool {
-	return isStandardTypeLiteral(tokens, i) || isFunctionTypeLiteral(tokens, i)
-}
-
-// The start of a list of tokens is a functionType if (...) -> (...). Returns
-func isFunctionTypeLiteral(tokens []token.Token, i int) bool {
-	isFunctionType, _ := skipFunctionTypeLiteral(tokens, i)
-	return isFunctionType
 }
 
 func skipFunctionTypeLiteral(tokens []token.Token, i int) (bool, int) {
@@ -111,18 +144,6 @@ func skipFunctionTypeLiteral(tokens []token.Token, i int) (bool, int) {
 	}
 
 	return true, i
-}
-
-func isStandardTypeLiteral(tokens []token.Token, i int) bool {
-	if i >= len(tokens) {
-		return false
-	}
-
-	if tokens[i].Type == token.TYPE {
-		return true
-	}
-
-	return false
 }
 
 func skipParenthesis(tokens []token.Token, leftParenthesis, rightParenthesis string, i int) (bool, int) {
