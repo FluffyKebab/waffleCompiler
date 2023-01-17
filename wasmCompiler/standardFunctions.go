@@ -71,7 +71,7 @@ func (c *compiler) importStandardFunction(functionName string) (int, int, error)
 }
 
 func getStandardFunctionRealName(functionName string, functionArguments []types.Type) (string, error) {
-	for _, functionNameNotDependingOnArgumentsTypes := range []string{"array", "allocate", "deAllocate", "length", "take"} {
+	for _, functionNameNotDependingOnArgumentsTypes := range []string{"array", "allocate", "deAllocate", "length", "take", "tail"} {
 		if functionNameNotDependingOnArgumentsTypes == functionName {
 			return functionName, nil
 		}
@@ -97,6 +97,17 @@ func getStandardFunctionExtraArguments(functionName string, functionArguments []
 		}
 
 		sizeOfElementsInArray, err := getArrayTypeElementSize(functionArguments[1])
+		if err != nil {
+			return []byte{}, err
+		}
+
+		return addConst(sizeOfElementsInArray), nil
+	case "tail":
+		if len(functionArguments) != 1 {
+			return []byte{}, fmt.Errorf("Error in validation process: wrong amount of arguments to tail ")
+		}
+
+		sizeOfElementsInArray, err := getArrayTypeElementSize(functionArguments[0])
 		if err != nil {
 			return []byte{}, err
 		}

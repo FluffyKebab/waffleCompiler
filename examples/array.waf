@@ -1,0 +1,4 @@
+sum = (array []int) -> (int) { if (0 == !length array) 0 else (!get array 0) + !sum !tail array }
+
+main = () -> { !sum [10, 10, 12] }
+

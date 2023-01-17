@@ -46,6 +46,15 @@ var standardFunctions = map[string]types.FunctionType{
 		},
 	},
 
+	"tail": {
+		ArgumentTypes: []types.Type{
+			types.ArrayType{ElementType: types.AnyType{Name: "a"}},
+		},
+		ReturnTypes: []types.Type{
+			types.ArrayType{ElementType: types.AnyType{Name: "a"}},
+		},
+	},
+
 	/* "map": { Not implemented yet
 		ArgumentTypes: []types.Type{
 			types.FunctionType{

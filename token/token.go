@@ -60,6 +60,10 @@ const (
 	RIGHT_PARENTHESIS = ")"
 	START_ARRAY       = "["
 	END_ARRAY         = "]"
+
+	LINE_COMMENT        = "//"
+	START_BLOCK_COMMENT = "/*"
+	END_BLOCK_COMMENT   = "*/"
 )
 
 var TypeTokens []string = []string{

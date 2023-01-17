@@ -48,7 +48,11 @@ func (v *validator) validateBlockStatement(block ast.BlockStatement, isFunction 
 						return ast.BlockStatement{}, returnStatementsReturnTypes, fmt.Errorf("Number of expression return types does not match number of variables in assignment statement")
 					}
 
-					v.addVariableToSymbolController(s.Variables[0].Identifier, s.Variables[0].Type, funcDefinitionExpression.FunctionType)
+					err := v.addVariableToSymbolController(s.Variables[0].Identifier, s.Variables[0].Type, funcDefinitionExpression.FunctionType)
+					if err != nil {
+						return ast.BlockStatement{}, returnStatementsReturnTypes, err
+					}
+					s.Variables[0].Type = funcDefinitionExpression.FunctionType
 				}
 			}
 
@@ -73,6 +77,7 @@ func (v *validator) validateBlockStatement(block ast.BlockStatement, isFunction 
 				if err != nil {
 					return ast.BlockStatement{}, returnStatementsReturnTypes, err
 				}
+				s.Variables[0].Type = expressionReturnTypes[i]
 			}
 
 		case ast.ReturnStatement:
@@ -160,7 +165,7 @@ func (v *validator) addVariableToSymbolController(variableName string, variableT
 			return fmt.Errorf("Attempt at mutating global variable")
 		}
 
-		if variableSymbol.Type.String() != variableType.String() {
+		if variableSymbol.Type.String() != expressionReturnType.String() {
 			return fmt.Errorf("Attempt at changing variable type")
 		}
 

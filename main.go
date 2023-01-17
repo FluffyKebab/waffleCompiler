@@ -38,15 +38,11 @@ func main() {
 	}
 }
 
-/*
-Todo:
-- array functions
-	- take
-	- append
-	- map
-	- reduce
-	- scan
-- add line num to ast to get better errors
-- currying
-- function composition
-*/
+func Compile(input string) ([]byte, error) {
+	syntaxTree, err := parser.Parse(input)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return wasmCompiler.Compile(syntaxTree)
+}

@@ -146,6 +146,40 @@
 
     (local.get $newArray)
   )
+
+  (func $tail (type $2) (param $arrayPointer i32) (param $elementSize i32) (result i32)
+    (local $oldArraySize i32)
+    (local $newArraySize i32)
+    (local $newArray i32)
+    (local $newArrayFirstPos i32)
+    (local $oldArrayFirstPos i32)
+    (local $i i32)
+    (local $numBytesToTake i32)
+
+    (local.set $oldArraySize (i32.load (local.get $arrayPointer)))
+    (local.set $newArraySize (i32.sub (local.get $oldArraySize) (i32.const 1)))
+
+    (if (i32.le_u (local.get $oldArraySize) (i32.const 1)) 
+      (then (return (call $array (i32.const 0) (local.get $elementSize))))
+    )
+    
+    (local.set $newArray (call $array (local.get $newArraySize) (local.get $elementSize)))
+    (local.set $newArrayFirstPos (i32.add (local.get $newArray) (i32.const 4))) (; Adding four to skip length ;)
+    (local.set $oldArrayFirstPos (i32.add (i32.add (local.get $arrayPointer) (i32.const 4)) (local.get $elementSize))) (; Old array first pos storing pointer to the second element in the array ;)
+    (local.set $numBytesToTake (i32.mul (local.get $oldArraySize) (local.get $elementSize))) 
+
+    (loop $copy
+      (i32.store8
+        (i32.add (local.get $newArrayFirstPos) (local.get $i))
+        (i32.load8_u (i32.add (local.get $oldArrayFirstPos) (local.get $i)))
+      )
+      
+      (local.set $i (i32.add (local.get $i) (i32.const 1)))
+      (br_if $copy (i32.lt_u (local.get $i) (local.get $numBytesToTake))) (; Loop if i is less then numBytes ;)
+    )
+
+    (local.get $newArray)
+  )
 )
 
 (;

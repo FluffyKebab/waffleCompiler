@@ -31,7 +31,7 @@ func (t StandardType) ByteCode() uint8 {
 	case token.BOOL:
 		return code.I32
 	default:
-		fmt.Println("Warning: standard type name to byte code not defined")
+		fmt.Printf("Warning: standard type %s to byte code not defined \n", t.Name)
 		return 0
 	}
 }

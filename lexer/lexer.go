@@ -17,8 +17,8 @@ func New(input string) Lexer {
 }
 
 func (l *Lexer) NextToken() token.Token {
-
-	for unicode.IsSpace(l.getCurChar()) || l.readPosition >= len(l.input) {
+	//Skipping whitespace and comments
+	for {
 		if l.readPosition >= len(l.input) {
 			return l.newToken(token.EOF, "", l.curLine)
 		}
@@ -28,7 +28,16 @@ func (l *Lexer) NextToken() token.Token {
 			return l.newToken(token.NEWLINE, token.NEWLINE, l.curLine-1)
 		}
 
-		l.readPosition++
+		if unicode.IsSpace(l.getCurChar()) {
+			l.readPosition++
+			continue
+		}
+
+		if skippedLineComment, skippedBlockComment := l.skipLineComment(), l.skipBlockComment(); skippedLineComment || skippedBlockComment {
+			continue
+		}
+
+		break
 	}
 
 	for _, typeToken := range token.TypeTokens {
@@ -62,9 +71,51 @@ func (l *Lexer) NextToken() token.Token {
 		return l.readVariable()
 	}
 
-	fmt.Printf("ilegal: %d \n", l.getCurChar())
+	fmt.Printf("illegal: %d \n", l.getCurChar())
 
 	return l.newToken(token.ILLEGAL, string(l.getCurChar()), l.curLine)
+}
+
+func (l *Lexer) skipLineComment() bool {
+	if !l.tokenIs(token.LINE_COMMENT) {
+		return false
+	}
+
+	l.readPosition += len(token.LINE_COMMENT)
+
+	for l.readPosition < len(l.input) {
+		if l.getCurChar() == '\n' {
+			l.curLine++
+			l.readPosition++
+			break
+		}
+
+		l.readPosition++
+	}
+
+	return true
+}
+
+func (l *Lexer) skipBlockComment() bool {
+	if !l.tokenIs(token.START_BLOCK_COMMENT) {
+		return false
+	}
+	l.readPosition += len(token.START_BLOCK_COMMENT)
+
+	for l.readPosition < len(l.input) {
+		if l.getCurChar() == '\n' {
+			l.curLine++
+		}
+
+		if l.tokenIs(token.END_BLOCK_COMMENT) {
+			l.readPosition += len(token.END_BLOCK_COMMENT)
+			return true
+		}
+
+		l.readPosition++
+	}
+
+	return true
 }
 
 func (l *Lexer) newToken(tokenType, ch string, curLine int) token.Token {

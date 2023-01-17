@@ -28,13 +28,9 @@ func NewProgram() Program {
 	}
 }
 
-func (p Program) ToString() (string, error) {
-	treeJSON, err := json.MarshalIndent(p, "", "  ")
-	if err != nil {
-		return "", err
-	}
-
-	return string(treeJSON), nil
+func (p Program) String() string {
+	treeJSON, _ := json.MarshalIndent(p, "", "  ")
+	return string(treeJSON)
 }
 
 type Statement interface {

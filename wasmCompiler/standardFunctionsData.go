@@ -49,6 +49,15 @@ var standardFunctionsData []standardFunctionDataElement = []standardFunctionData
 		fileName:  "./builtInsCode/memoryManagement.wasm",
 		funcIndex: 3,
 	},
+	{
+		name: "tail",
+		funcType: types.FunctionType{
+			ArgumentTypes: []types.Type{types.StandardType{Name: token.INT}, types.StandardType{Name: token.INT}},
+			ReturnTypes:   []types.Type{types.StandardType{Name: token.INT}},
+		},
+		fileName:  "./builtInsCode/memoryManagement.wasm",
+		funcIndex: 4,
+	},
 
 	{
 		name: "i32get",
@@ -121,4 +130,5 @@ var isOpenStandardFunction = map[string]bool{
 	"get":    true,
 	"length": true,
 	"take":   true,
+	"tail":   true,
 }
